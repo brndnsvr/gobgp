@@ -210,11 +210,43 @@ func main() {
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
 
+	// Add panic recovery interceptors to prevent daemon crashes from panics in gRPC handlers
+	unaryPanicRecovery := func(ctx context.Context, req interface{},
+		info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error("panic in gRPC unary handler",
+					slog.Any("panic", r),
+					slog.String("method", info.FullMethod))
+				err = fmt.Errorf("internal server error: %v", r)
+			}
+		}()
+		return handler(ctx, req)
+	}
+
+	streamPanicRecovery := func(srv interface{}, ss grpc.ServerStream,
+		info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error("panic in gRPC stream handler",
+					slog.Any("panic", r),
+					slog.String("method", info.FullMethod))
+				err = fmt.Errorf("internal server error: %v", r)
+			}
+		}()
+		return handler(srv, ss)
+	}
+
+	// Chain interceptors: panic recovery first, then metrics (if enabled)
 	if opts.MetricsPath != "" {
-		grpcOpts = append(
-			grpcOpts,
-			grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
-			grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+		grpcOpts = append(grpcOpts,
+			grpc.ChainUnaryInterceptor(unaryPanicRecovery, grpc_prometheus.UnaryServerInterceptor),
+			grpc.ChainStreamInterceptor(streamPanicRecovery, grpc_prometheus.StreamServerInterceptor),
+		)
+	} else {
+		grpcOpts = append(grpcOpts,
+			grpc.UnaryInterceptor(unaryPanicRecovery),
+			grpc.StreamInterceptor(streamPanicRecovery),
 		)
 	}
 

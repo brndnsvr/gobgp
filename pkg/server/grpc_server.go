@@ -511,9 +511,13 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	var nexthop netip.Addr
 
 	if path.SourceAsn != 0 {
+		sourceId, err := netip.ParseAddr(path.SourceId)
+		if err != nil {
+			return nil, fmt.Errorf("invalid source ID %q: %w", path.SourceId, err)
+		}
 		pi = &table.PeerInfo{
 			AS: path.SourceAsn,
-			ID: netip.MustParseAddr(path.SourceId),
+			ID: sourceId,
 		}
 	}
 
@@ -634,6 +638,10 @@ func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPa
 	})
 	if err != nil {
 		return &api.AddPathResponse{}, err
+	}
+
+	if len(path) == 0 {
+		return &api.AddPathResponse{}, fmt.Errorf("no paths returned from AddPath")
 	}
 
 	id := path[0].UUID
@@ -2305,7 +2313,7 @@ func (s *server) GetBgp(ctx context.Context, r *api.GetBgpRequest) (*api.GetBgpR
 	return s.bgpServer.GetBgp(ctx, r)
 }
 
-func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
+func newGlobalFromAPIStruct(a *api.Global) (*oc.Global, error) {
 	families := make([]oc.AfiSafi, 0, len(a.Families))
 	for _, f := range a.Families {
 		name := oc.IntToAfiSafiTypeMap[int(f)]
@@ -2327,13 +2335,22 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 	readApplyPolicyFromAPIStruct(applyPolicy, a.ApplyPolicy)
 	l := make([]netip.Addr, 0, len(a.ListenAddresses))
 	for _, addr := range a.ListenAddresses {
-		l = append(l, netip.MustParseAddr(addr))
+		parsed, err := netip.ParseAddr(addr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid listen address %q: %w", addr, err)
+		}
+		l = append(l, parsed)
+	}
+
+	routerId, err := netip.ParseAddr(a.RouterId)
+	if err != nil {
+		return nil, fmt.Errorf("invalid router ID %q: %w", a.RouterId, err)
 	}
 
 	global := &oc.Global{
 		Config: oc.GlobalConfig{
 			As:               a.Asn,
-			RouterId:         netip.MustParseAddr(a.RouterId),
+			RouterId:         routerId,
 			Port:             a.ListenPort,
 			LocalAddressList: l,
 		},
@@ -2388,7 +2405,7 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 			},
 		}
 	}
-	return global
+	return global, nil
 }
 
 func (s *server) StartBgp(ctx context.Context, r *api.StartBgpRequest) (*api.StartBgpResponse, error) {

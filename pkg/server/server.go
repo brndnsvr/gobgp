@@ -1791,8 +1791,13 @@ func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 			slog.Int("Port", int(port)),
 			slog.String("Policy", r.Policy.String()))
 
+		address, err := netip.ParseAddr(r.Address)
+		if err != nil {
+			return fmt.Errorf("invalid BMP server address %q: %w", r.Address, err)
+		}
+
 		return s.bmpManager.addServer(&oc.BmpServerConfig{
-			Address:               netip.MustParseAddr(r.Address),
+			Address:               address,
 			Port:                  port,
 			SysName:               sysname,
 			SysDescr:              sysDescr,
@@ -1807,8 +1812,12 @@ func (s *BgpServer) DeleteBmp(ctx context.Context, r *api.DeleteBmpRequest) erro
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
+		address, err := netip.ParseAddr(r.Address)
+		if err != nil {
+			return fmt.Errorf("invalid BMP server address %q: %w", r.Address, err)
+		}
 		return s.bmpManager.deleteServer(&oc.BmpServerConfig{
-			Address: netip.MustParseAddr(r.Address),
+			Address: address,
 			Port:    r.Port,
 		})
 	}, true)
@@ -2308,7 +2317,10 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 			return fmt.Errorf("invalid router-id format: %s", g.RouterId)
 		}
 
-		c := newGlobalFromAPIStruct(g)
+		c, err := newGlobalFromAPIStruct(g)
+		if err != nil {
+			return err
+		}
 		if err := oc.SetDefaultGlobalConfigValues(c); err != nil {
 			return err
 		}
