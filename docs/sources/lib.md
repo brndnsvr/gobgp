@@ -28,7 +28,7 @@ func main() {
 	lvl := &slog.LevelVar{}
 	lvl.Set(slog.LevelInfo)
 
-	s := server.NewBgpServer(server.LoggerOption(slog.Default(), lvl))
+	s := server.NewBgpServer(server.LoggerOption(log, lvl))
 	go s.Serve()
 
 	// global configuration
@@ -41,6 +41,14 @@ func main() {
 	}); err != nil {
 		log.Error("failed to start BGP", slog.String("Error", err.Error()))
 	}
+
+	// set default import policy
+	s.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+			DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+		},
+	})
 
 	// monitor the change of the peer state
 	if err := s.WatchEvent(context.Background(), server.WatchEventMessageCallbacks{

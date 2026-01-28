@@ -1162,9 +1162,6 @@ func showNeighborPolicy(remoteIP, policyType string, indent int) error {
 	default:
 		return fmt.Errorf("invalid policy type: choose from (import|export)")
 	}
-	if remoteIP == "" {
-		remoteIP = globalRIBName
-	}
 	stream, err := client.ListPolicyAssignment(ctx, &api.ListPolicyAssignmentRequest{
 		Name:      remoteIP,
 		Direction: dir,
@@ -1216,10 +1213,6 @@ func extractDefaultAction(args []string) ([]string, api.RouteAction, error) {
 }
 
 func modNeighborPolicy(remoteIP, policyType, cmdType string, args []string) error {
-	if remoteIP == "" {
-		remoteIP = globalRIBName
-	}
-
 	assign := &api.PolicyAssignment{
 		Name: remoteIP,
 	}
@@ -1299,7 +1292,8 @@ func modNeighbor(cmdType string, args []string) error {
 		params["remove-private-as"] = paramSingle
 		params["replace-peer-as"] = paramFlag
 		params["ebgp-multihop-ttl"] = paramSingle
-		usage += " [ local-as <VALUE> | family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as | ebgp-multihop-ttl <ttl>]"
+		params["peer-group"] = paramSingle
+		usage += " [ local-as <VALUE> | family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as | ebgp-multihop-ttl <ttl> | peer-group <peer-group-name>]"
 	}
 
 	m, err := extractReserved(args, params)
@@ -1419,6 +1413,9 @@ func modNeighbor(cmdType string, args []string) error {
 				Enabled:     true,
 				MultihopTtl: uint32(ttl),
 			}
+		}
+		if len(m["peer-group"]) == 1 {
+			peer.Conf.PeerGroup = m["peer-group"][0]
 		}
 		return nil
 	}

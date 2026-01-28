@@ -528,24 +528,24 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			AdminState:   admin_state,
 			Messages: &api.Messages{
 				Received: &api.Message{
-					Notification:   s.Messages.Received.Notification,
-					Update:         s.Messages.Received.Update,
-					Open:           s.Messages.Received.Open,
-					Keepalive:      s.Messages.Received.Keepalive,
-					Refresh:        s.Messages.Received.Refresh,
-					Discarded:      s.Messages.Received.Discarded,
-					Total:          s.Messages.Received.Total,
-					WithdrawUpdate: uint64(s.Messages.Received.WithdrawUpdate),
-					WithdrawPrefix: uint64(s.Messages.Received.WithdrawPrefix),
+					Notification:   pconf.State.Messages.Received.Notification,
+					Update:         pconf.State.Messages.Received.Update,
+					Open:           pconf.State.Messages.Received.Open,
+					Keepalive:      pconf.State.Messages.Received.Keepalive,
+					Refresh:        pconf.State.Messages.Received.Refresh,
+					Discarded:      pconf.State.Messages.Received.Discarded,
+					Total:          pconf.State.Messages.Received.Total,
+					WithdrawUpdate: uint64(pconf.State.Messages.Received.WithdrawUpdate),
+					WithdrawPrefix: uint64(pconf.State.Messages.Received.WithdrawPrefix),
 				},
 				Sent: &api.Message{
-					Notification: s.Messages.Sent.Notification,
-					Update:       s.Messages.Sent.Update,
-					Open:         s.Messages.Sent.Open,
-					Keepalive:    s.Messages.Sent.Keepalive,
-					Refresh:      s.Messages.Sent.Refresh,
-					Discarded:    s.Messages.Sent.Discarded,
-					Total:        s.Messages.Sent.Total,
+					Notification: pconf.State.Messages.Sent.Notification,
+					Update:       pconf.State.Messages.Sent.Update,
+					Open:         pconf.State.Messages.Sent.Open,
+					Keepalive:    pconf.State.Messages.Sent.Keepalive,
+					Refresh:      pconf.State.Messages.Sent.Refresh,
+					Discarded:    pconf.State.Messages.Sent.Discarded,
+					Total:        pconf.State.Messages.Sent.Total,
 				},
 			},
 			PeerAsn:         s.PeerAs,
@@ -606,6 +606,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			PassiveMode:   pconf.Transport.Config.PassiveMode,
 			BindInterface: pconf.Transport.Config.BindInterface,
 			TcpMss:        uint32(pconf.Transport.Config.TcpMss),
+			IpTos:         uint32(pconf.Transport.Config.IpTos),
 		},
 		AfiSafis: afiSafis,
 	}
@@ -685,6 +686,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			LocalAddress: pconf.Transport.Config.LocalAddress.String(),
 			PassiveMode:  pconf.Transport.Config.PassiveMode,
 			TcpMss:       uint32(pconf.Transport.Config.TcpMss),
+			IpTos:        uint32(pconf.Transport.Config.IpTos),
 		},
 		AfiSafis: afiSafis,
 	}
@@ -696,7 +698,6 @@ func NewGlobalFromConfigStruct(c *Global) *api.Global {
 		families = append(families, uint32(AfiSafiTypeToIntMap[f.Config.AfiSafiName]))
 	}
 
-	applyPolicy := newApplyPolicyFromConfigStruct(&c.ApplyPolicy)
 	l := make([]string, 0, len(c.Config.LocalAddressList))
 	for _, addr := range c.Config.LocalAddressList {
 		l = append(l, addr.String())
@@ -736,7 +737,6 @@ func NewGlobalFromConfigStruct(c *Global) *api.Global {
 			NotificationEnabled: c.GracefulRestart.Config.NotificationEnabled,
 			LonglivedEnabled:    c.GracefulRestart.Config.LongLivedEnabled,
 		},
-		ApplyPolicy: applyPolicy,
 	}
 }
 

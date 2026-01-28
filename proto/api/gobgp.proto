@@ -725,9 +725,8 @@ message DynamicNeighbor {
 }
 
 message ApplyPolicy {
-  PolicyAssignment in_policy = 1;
-  PolicyAssignment export_policy = 2;
-  PolicyAssignment import_policy = 3;
+  PolicyAssignment export_policy = 1;
+  PolicyAssignment import_policy = 2;
 }
 
 message PrefixLimit {
@@ -920,6 +919,7 @@ message Transport {
   uint32 remote_port = 6;
   uint32 tcp_mss = 7;
   string bind_interface = 8;
+  uint32 ip_tos = 9;
 }
 
 message RouteServer {
@@ -1324,8 +1324,7 @@ message Global {
   DefaultRouteDistance default_route_distance = 8;
   Confederation confederation = 9;
   GracefulRestart graceful_restart = 10;
-  ApplyPolicy apply_policy = 11;
-  string bind_to_device = 12;
+  string bind_to_device = 11;
 }
 
 message Confederation {

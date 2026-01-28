@@ -911,6 +911,62 @@ func Test_CompareFlowSpecNLRI(t *testing.T) {
 	assert.True(r < 0)
 }
 
+func Test_ParseFlowSpecComponents_DoesNotPanicOnInvalidInput(t *testing.T) {
+	// Regression: some inputs pass ParseFlowSpecComponents()'s len(args)>0 check
+	// but are discarded by normalizeFlowSpecOpValues(), leading to argsLen==0 and
+	// a panic when marking the end-of-list bit.
+	cases := []string{
+		"dscp foo",
+		"tcp-flags foo",
+		"fragment foo",
+	}
+
+	for _, c := range cases {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("ParseFlowSpecComponents must not panic for %q: %v", c, r)
+				}
+			}()
+			_, err := ParseFlowSpecComponents(RF_FS_IPv4_UC, c)
+			if err == nil {
+				t.Fatalf("expected error for %q", c)
+			}
+		}()
+	}
+}
+
+func TestMpReachDecodeDoesNotMutateInputWhenDeletingSecondRD(t *testing.T) {
+	// Triggers nexthoplen == 2*RD + (IPv6 global + link-local)
+	// and ensures DecodeFromBytes does not modify the input buffer.
+	flags := uint8(0x80) // optional
+	typ := uint8(BGP_ATTR_TYPE_MP_REACH_NLRI)
+
+	// Value layout:
+	// AFI(2) + SAFI(1) + NHLen(1) + NH(48) + SNPA len/reserved(1) + NLRI(0)
+	value := make([]byte, 0, 2+1+1+48+1)
+	value = append(value, 0x00, 0x02)                        // AFI_IP6
+	value = append(value, 0x80)                              // SAFI_MPLS_VPN
+	value = append(value, 48)                                // NHLen
+	value = append(value, bytes.Repeat([]byte{0x11}, 8)...)  // RD1
+	value = append(value, bytes.Repeat([]byte{0x22}, 16)...) // IPv6 global
+	value = append(value, bytes.Repeat([]byte{0x33}, 8)...)  // RD2 (to be removed)
+	value = append(value, bytes.Repeat([]byte{0x44}, 16)...) // IPv6 link-local
+	value = append(value, 0x00)                              // SNPA len (skipped)
+
+	attr := make([]byte, 0, 3+len(value))
+	attr = append(attr, flags, typ, uint8(len(value)))
+	attr = append(attr, value...)
+
+	data := bytes.Clone(attr)
+	before := bytes.Clone(data)
+
+	p := &PathAttributeMpReachNLRI{}
+	err := p.DecodeFromBytes(data)
+	require.NoError(t, err)
+	require.Equal(t, before, data, "DecodeFromBytes must not mutate the input buffer")
+}
+
 func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	assert := assert.New(t)
 	n1, _ := NewIPAddrPrefix(netip.MustParsePrefix("::ffff:10.0.0.0/120"))
@@ -3839,14 +3895,17 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&CapSoftwareVersion{}).DecodeFromBytes(data)
 		(&OptionParameterCapability{}).DecodeFromBytes(data)
 		(&BGPOpen{}).DecodeFromBytes(data)
-		(&IPAddrPrefix{}).decodeFromBytes(data)
+		(&IPAddrPrefix{}).decodeFromBytes(data, net.IPv4len)
+		(&IPAddrPrefix{}).decodeFromBytes(data, net.IPv6len)
 		(&RouteDistinguisherTwoOctetAS{}).DecodeFromBytes(data)
 		(&RouteDistinguisherIPAddressAS{}).DecodeFromBytes(data)
 		(&RouteDistinguisherFourOctetAS{}).DecodeFromBytes(data)
 		(&RouteDistinguisherUnknown{}).DecodeFromBytes(data)
 		(&MPLSLabelStack{}).DecodeFromBytes(data)
-		(&LabeledVPNIPAddrPrefix{}).decodeFromBytes(data)
-		(&LabeledIPAddrPrefix{}).decodeFromBytes(data)
+		(&LabeledVPNIPAddrPrefix{}).decodeFromBytes(data, net.IPv4len)
+		(&LabeledVPNIPAddrPrefix{}).decodeFromBytes(data, net.IPv6len)
+		(&LabeledIPAddrPrefix{}).decodeFromBytes(data, net.IPv4len)
+		(&LabeledIPAddrPrefix{}).decodeFromBytes(data, net.IPv6len)
 		(&RouteTargetMembershipNLRI{}).decodeFromBytes(data)
 		(&EthernetSegmentIdentifier{}).DecodeFromBytes(data)
 		(&EVPNEthernetAutoDiscoveryRoute{}).DecodeFromBytes(data)
@@ -4136,5 +4195,15 @@ func Test_LsTLVSrv6EndpointBehavior(t *testing.T) {
 				assert.Equal(test.in, got)
 			}
 		}
+	}
+}
+
+func TestParseSubTLVsOverflow(t *testing.T) {
+	l := &LsTLVSrv6EndXSID{}
+
+	// tlvLen = 65532 (0xFFFC) makes (uint16(4) + tlvLen) wrap to 0 in the buggy code.
+	data := []byte{0x00, 0x00, 0xFF, 0xFC}
+	if err := l.parseSubTLVs(data); err == nil {
+		t.Fatal("expected error for truncated Sub-TLV")
 	}
 }

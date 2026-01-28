@@ -67,6 +67,11 @@ jobs:
       - name: buf format check
         run: buf format --diff --exit-code
 
+      - name: buf generate check
+        run: |
+          buf generate --template proto/buf.gen.yaml proto
+          git diff --exit-code
+
   golangci:
     name: lint
     runs-on: ubuntu-22.04
@@ -77,6 +82,8 @@ jobs:
           go-version: "stable"
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
+        with:
+          skip-cache: true
 
   embedded:
     name: embedded

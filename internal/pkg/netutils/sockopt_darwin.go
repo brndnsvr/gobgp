@@ -14,7 +14,6 @@
 // limitations under the License.
 
 //go:build darwin
-// +build darwin
 
 package netutils
 
@@ -52,4 +51,13 @@ func SetTcpMSSSockopt(conn net.Conn, mss uint16) error {
 		return err
 	}
 	return setSockOptTcpMss(sc, family, mss)
+}
+
+func SetIpTOSSockopt(conn net.Conn, tos uint8) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
+	if err != nil {
+		return err
+	}
+	return setSockOptIpTos(sc, family, tos)
 }

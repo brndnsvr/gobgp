@@ -14,7 +14,6 @@
 // limitations under the License.
 
 //go:build !linux && !dragonfly && !freebsd && !netbsd && !openbsd && !darwin && !windows
-// +build !linux,!dragonfly,!freebsd,!netbsd,!openbsd,!darwin,!windows
 
 package netutils
 
@@ -36,5 +35,9 @@ func SetTcpMinTTLSockopt(conn net.Conn, ttl int) error {
 }
 
 func SetTcpMSSSockopt(conn net.Conn, mss uint16) error {
-	return fmt.Errorf("setting min ttl is not supported")
+	return fmt.Errorf("setting tcp mss is not supported")
+}
+
+func SetIpTOSSockopt(conn net.Conn, tos uint8) error {
+	return fmt.Errorf("setting ip tos is not supported")
 }
